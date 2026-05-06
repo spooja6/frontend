@@ -1,778 +1,542 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>DigitSense — MNIST Classifier</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;500;600&display=swap');
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MNIST Digit Classifier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --bg: #07080f;
-    --surface: #0f1018;
-    --card: #13141f;
-    --border: #1f2035;
-    --accent: #4f8ef7;
-    --accent-glow: rgba(79,142,247,0.3);
-    --cyan: #00d4c8;
-    --cyan-glow: rgba(0,212,200,0.2);
-    --text: #e2e4f0;
-    --muted: #5a5d7a;
-    --dim: #2a2d45;
-    --success: #22d3a0;
-    --error: #f05c7a;
-    --white: #ffffff;
-  }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f13;
+      color: #e8e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
+    .app {
+      width: 100%;
+      max-width: 480px;
+    }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Outfit', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
 
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: radial-gradient(circle, rgba(79,142,247,0.07) 1px, transparent 1px);
-    background-size: 36px 36px;
-    pointer-events: none;
-    z-index: 0;
-  }
+    .header h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
 
-  .glow-blob {
-    position: fixed;
-    border-radius: 50%;
-    filter: blur(100px);
-    pointer-events: none;
-    z-index: 0;
-  }
-  .glow-blob-1 {
-    width: 500px; height: 500px;
-    background: radial-gradient(circle, rgba(79,142,247,0.18), transparent 70%);
-    top: -160px; left: -160px;
-    animation: blobFloat 18s ease-in-out infinite;
-  }
-  .glow-blob-2 {
-    width: 420px; height: 420px;
-    background: radial-gradient(circle, rgba(0,212,200,0.12), transparent 70%);
-    bottom: -120px; right: -120px;
-    animation: blobFloat 22s ease-in-out infinite reverse;
-  }
-  @keyframes blobFloat {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    33% { transform: translate(30px, 20px) scale(1.05); }
-    66% { transform: translate(-20px, 35px) scale(0.97); }
-  }
+    .header p {
+      font-size: 0.875rem;
+      color: #6b6b80;
+      margin-top: 0.4rem;
+    }
 
-  .page {
-    position: relative;
-    z-index: 1;
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 60px 24px 80px;
-  }
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
 
-  /* Header */
-  .header { text-align: center; margin-bottom: 52px; animation: fadeUp 0.7s ease both; }
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6b6b80;
+      margin-bottom: 1rem;
+    }
 
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(79,142,247,0.1);
-    border: 1px solid rgba(79,142,247,0.25);
-    border-radius: 999px;
-    padding: 5px 14px 5px 10px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px;
-    color: #7ab2fb;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 22px;
-  }
-  .badge-dot {
-    width: 7px; height: 7px;
-    background: #4f8ef7;
-    border-radius: 50%;
-    box-shadow: 0 0 8px #4f8ef7;
-    animation: blink 2.2s ease-in-out infinite;
-  }
-  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    /* Canvas drawing area */
+    .canvas-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
 
-  h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(48px, 9vw, 88px);
-    font-weight: 800;
-    line-height: 0.95;
-    letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #ffffff 0%, #a8c4ff 50%, #00d4c8 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+    #draw-canvas {
+      border-radius: 10px;
+      border: 1.5px solid #2e2e45;
+      cursor: crosshair;
+      touch-action: none;
+      background: #000;
+      display: block;
+    }
 
-  .header-sub {
-    margin-top: 18px;
-    font-size: 15px;
-    color: var(--muted);
-    font-weight: 300;
-    max-width: 480px;
-    margin-left: auto;
-    margin-right: auto;
-    line-height: 1.6;
-  }
+    .canvas-actions {
+      display: flex;
+      gap: 0.6rem;
+      width: 100%;
+    }
 
-  /* API strip */
-  .api-strip {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(0,212,200,0.05);
-    border: 1px solid rgba(0,212,200,0.18);
-    border-radius: 12px;
-    padding: 12px 18px;
-    margin-bottom: 32px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    animation: fadeUp 0.7s 0.15s ease both;
-  }
-  .api-strip-url { color: #4dd9d4; word-break: break-all; }
-  .api-strip-edit {
-    margin-left: auto; flex-shrink: 0;
-    background: rgba(0,212,200,0.1);
-    border: 1px solid rgba(0,212,200,0.25);
-    color: #00d4c8;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .api-strip-edit:hover { background: rgba(0,212,200,0.2); }
+    .btn {
+      flex: 1;
+      padding: 0.65rem 1rem;
+      border-radius: 9px;
+      border: 1px solid #2e2e45;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
 
-  /* Tabs */
-  .tab-row {
-    display: flex; gap: 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 6px;
-    margin-bottom: 24px;
-    animation: fadeUp 0.7s 0.2s ease both;
-  }
-  .tab {
-    flex: 1; padding: 12px 16px;
-    background: none; border: none;
-    border-radius: 10px;
-    color: var(--muted);
-    font-family: 'Outfit', sans-serif;
-    font-size: 13.5px; font-weight: 500;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    transition: all 0.22s;
-  }
-  .tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.04); }
-  .tab.active {
-    background: linear-gradient(135deg, rgba(79,142,247,0.2), rgba(0,212,200,0.1));
-    border: 1px solid rgba(79,142,247,0.3);
-    color: var(--white);
-  }
+    .btn:active { transform: scale(0.97); }
 
-  /* Panels */
-  .panel { display: none; animation: fadeUp 0.35s ease both; }
-  .panel.active { display: block; }
+    .btn-ghost {
+      background: transparent;
+      color: #9090a8;
+    }
+    .btn-ghost:hover { background: #22222e; border-color: #3a3a50; color: #e8e8f0; }
 
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 36px;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(79,142,247,0.06);
-  }
+    .btn-primary {
+      background: #6c63ff;
+      color: #fff;
+      border-color: #6c63ff;
+    }
+    .btn-primary:hover { background: #7b74ff; border-color: #7b74ff; }
+    .btn-primary:disabled { background: #2e2e45; border-color: #2e2e45; color: #5a5a70; cursor: not-allowed; transform: none; }
 
-  /* Draw grid */
-  .draw-grid {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 36px;
-    align-items: start;
-  }
+    /* Upload tab */
+    .tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 1.2rem;
+    }
 
-  .canvas-col { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .tab {
+      padding: 0.45rem 1rem;
+      border-radius: 7px;
+      border: 1px solid transparent;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: transparent;
+      color: #6b6b80;
+    }
 
-  .canvas-wrapper {
-    position: relative;
-    border-radius: 18px;
-    padding: 3px;
-    background: linear-gradient(135deg, rgba(79,142,247,0.45), rgba(0,212,200,0.35));
-    box-shadow: 0 0 40px rgba(79,142,247,0.15);
-  }
+    .tab.active {
+      background: #22222e;
+      border-color: #2e2e45;
+      color: #e8e8f0;
+    }
+    .tab:not(.active):hover { color: #b0b0c8; }
 
-  #drawCanvas {
-    display: block;
-    width: 280px; height: 280px;
-    border-radius: 15px;
-    background: #ffffff;
-    cursor: crosshair;
-    touch-action: none;
-  }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
 
-  .canvas-hint {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: var(--muted);
-    letter-spacing: 0.1em; text-transform: uppercase;
-  }
+    /* Upload area */
+    .upload-zone {
+      border: 1.5px dashed #2e2e45;
+      border-radius: 10px;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #6c63ff;
+      background: #1f1f2e;
+    }
+    .upload-zone svg { margin-bottom: 0.75rem; opacity: 0.5; }
+    .upload-zone p { font-size: 0.875rem; color: #6b6b80; }
+    .upload-zone span { color: #6c63ff; }
+    #file-input { display: none; }
 
-  .draw-actions { display: flex; align-items: center; gap: 10px; }
+    #upload-preview {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    #upload-preview img {
+      width: 200px;
+      height: 200px;
+      object-fit: contain;
+      border-radius: 8px;
+      border: 1px solid #2e2e45;
+      background: #000;
+    }
 
-  .btn-ghost {
-    padding: 9px 16px;
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    border-radius: 10px;
-    font-family: 'Outfit', sans-serif;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex; align-items: center; gap: 6px;
-    transition: all 0.2s;
-  }
-  .btn-ghost:hover { color: var(--error); border-color: rgba(240,92,122,0.4); background: rgba(240,92,122,0.06); }
+    /* API URL input */
+    .api-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
 
-  .brush-row {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 12px; color: var(--muted);
-  }
-  input[type=range] { accent-color: var(--accent); width: 80px; cursor: pointer; }
+    .api-row input {
+      flex: 1;
+      background: #12121a;
+      border: 1px solid #2e2e45;
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.8rem;
+      color: #e8e8f0;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .api-row input:focus { border-color: #6c63ff; }
+    .api-row input::placeholder { color: #444458; }
 
-  /* Result column */
-  .result-col { display: flex; flex-direction: column; gap: 20px; }
+    /* Result area */
+    #result-card {
+      display: none;
+      text-align: center;
+    }
 
-  .predict-btn {
-    width: 100%; padding: 16px 24px;
-    background: linear-gradient(135deg, #4f8ef7, #2563eb);
-    border: none; border-radius: 14px;
-    color: #fff;
-    font-family: 'Outfit', sans-serif;
-    font-size: 15px; font-weight: 600;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    transition: all 0.22s;
-    box-shadow: 0 8px 24px rgba(79,142,247,0.25);
-    position: relative; overflow: hidden;
-  }
-  .predict-btn::after {
-    content: '';
-    position: absolute; inset: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
-    opacity: 0; transition: opacity 0.2s;
-  }
-  .predict-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(79,142,247,0.4); }
-  .predict-btn:hover::after { opacity: 1; }
-  .predict-btn:active { transform: translateY(0); }
-  .predict-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+    .result-digit {
+      font-size: 5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #6c63ff;
+      margin-bottom: 0.5rem;
+    }
 
-  .spinner {
-    width: 18px; height: 18px;
-    border: 2.5px solid rgba(255,255,255,0.35);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.65s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+    .result-label {
+      font-size: 0.8rem;
+      color: #6b6b80;
+      margin-bottom: 1rem;
+    }
 
-  /* Result box */
-  .result-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px 24px;
-    min-height: 160px;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 14px;
-    transition: border-color 0.3s;
-  }
-  .result-box.has-result { border-color: rgba(79,142,247,0.35); }
-  .result-box.has-error  { border-color: rgba(240,92,122,0.35); }
+    .confidence-bar-wrap {
+      background: #12121a;
+      border-radius: 100px;
+      height: 6px;
+      overflow: hidden;
+      margin: 0.4rem 0 0.3rem;
+    }
+    .confidence-bar {
+      height: 100%;
+      border-radius: 100px;
+      background: linear-gradient(90deg, #6c63ff, #a78bfa);
+      transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .confidence-pct {
+      font-size: 0.78rem;
+      color: #9090a8;
+    }
 
-  .empty-state { text-align: center; }
-  .empty-icon  { font-size: 36px; opacity: 0.25; margin-bottom: 10px; }
-  .empty-text  { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .error-msg {
+      background: #2a1515;
+      border: 1px solid #4a2020;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.825rem;
+      color: #f08080;
+      display: none;
+    }
 
-  .digit-display {
-    font-family: 'Syne', sans-serif;
-    font-size: 100px; font-weight: 800; line-height: 1;
-    background: linear-gradient(135deg, #ffffff, #7ab2fb, #00d4c8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  }
-  @keyframes popIn {
-    from { transform: scale(0.4); opacity: 0; }
-    to   { transform: scale(1);   opacity: 1; }
-  }
+    .spinner {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      color: #6b6b80;
+      font-size: 0.85rem;
+      padding: 0.5rem 0;
+    }
+    .spinner svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-  .digit-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px; color: var(--muted);
-    letter-spacing: 0.12em; text-transform: uppercase;
-  }
-
-  .conf-wrap { width: 100%; }
-  .conf-header {
-    display: flex; justify-content: space-between;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px; color: var(--muted); margin-bottom: 8px;
-  }
-  .conf-track { height: 8px; background: var(--dim); border-radius: 999px; overflow: hidden; }
-  .conf-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #4f8ef7, #00d4c8);
-    border-radius: 999px;
-    transition: width 0.9s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .topk-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: var(--muted);
-    letter-spacing: 0.1em; text-transform: uppercase;
-    align-self: flex-start;
-  }
-  .topk-row { display: flex; gap: 8px; width: 100%; }
-  .topk-cell {
-    flex: 1;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px 6px;
-    text-align: center;
-    transition: border-color 0.2s;
-  }
-  .topk-cell.winner {
-    border-color: rgba(79,142,247,0.5);
-    background: rgba(79,142,247,0.08);
-    box-shadow: 0 0 12px rgba(79,142,247,0.1);
-  }
-  .topk-d { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); }
-  .topk-p { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px; }
-
-  .err-state { text-align: center; }
-  .err-icon  { font-size: 28px; margin-bottom: 8px; }
-  .err-text  { font-size: 13px; color: var(--error); line-height: 1.5; }
-
-  /* Upload panel */
-  .upload-stack { display: flex; flex-direction: column; gap: 24px; }
-
-  .drop-zone {
-    border: 2px dashed var(--border);
-    border-radius: 16px;
-    padding: 52px 32px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.25s;
-    position: relative; overflow: hidden;
-  }
-  .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .drop-zone:hover, .drop-zone.drag-over {
-    border-color: rgba(79,142,247,0.55);
-    background: rgba(79,142,247,0.04);
-  }
-  .drop-icon  { font-size: 44px; margin-bottom: 14px; }
-  .drop-title { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
-  .drop-sub   { font-size: 13px; color: var(--muted); }
-
-  .preview-row {
-    display: none;
-    align-items: center; gap: 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 18px;
-  }
-  .preview-thumb {
-    width: 64px; height: 64px;
-    border-radius: 10px;
-    object-fit: contain;
-    background: #fff;
-    border: 1px solid var(--border);
-    display: none;
-  }
-  .preview-name { font-size: 13px; font-weight: 500; }
-  .preview-size { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
-
-  .upload-bottom {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    align-items: start;
-  }
-
-  .tips-card {
-    background: rgba(79,142,247,0.05);
-    border: 1px solid rgba(79,142,247,0.15);
-    border-radius: 14px;
-    padding: 20px;
-  }
-  .tips-title {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: #7ab2fb;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    margin-bottom: 14px;
-  }
-  .tips-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-  .tips-list li {
-    display: flex; align-items: flex-start; gap: 8px;
-    font-size: 12.5px; color: var(--muted); line-height: 1.4;
-  }
-  .tips-list li::before { content: '→'; color: var(--accent); flex-shrink: 0; }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(18px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  @media (max-width: 640px) {
-    .draw-grid, .upload-bottom { grid-template-columns: 1fr; }
-    #drawCanvas { width: 240px; height: 240px; }
-    .card { padding: 24px; }
-  }
-</style>
+    .pen-size-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #1f1f2e;
+    }
+    .pen-size-row label { font-size: 0.78rem; color: #6b6b80; }
+    .pen-size-row input[type=range] {
+      flex: 1;
+      accent-color: #6c63ff;
+    }
+    .pen-size-row span { font-size: 0.78rem; color: #9090a8; min-width: 20px; }
+  </style>
 </head>
 <body>
 
-<div class="glow-blob glow-blob-1"></div>
-<div class="glow-blob glow-blob-2"></div>
-
-<div class="page">
-
-  <header class="header">
-    <div class="badge"><span class="badge-dot"></span>Deep Learning · MNIST · CNN</div>
-    <h1>DigitSense</h1>
-    <p class="header-sub">Handwritten digit recognition powered by a trained neural network. Draw or upload — get an instant prediction.</p>
-  </header>
-
-  <div class="api-strip">
-    <span>⚡ Endpoint: <span class="api-strip-url" id="apiUrlDisplay">API_URL/predict</span></span>
-    <button class="api-strip-edit" onclick="editApiUrl()">Edit URL</button>
+<div class="app">
+  <div class="header">
+    <h1>Digit Classifier</h1>
+    <p>Draw or upload a handwritten digit (0–9)</p>
   </div>
 
-  <div class="tab-row">
-    <button class="tab active" onclick="switchTab('draw', this)">✏️ Draw a Digit</button>
-    <button class="tab" onclick="switchTab('upload', this)">📁 Upload Image</button>
-  </div>
-
-  <!-- ══ DRAW PANEL ══ -->
-  <div class="panel active card" id="panel-draw">
-    <div class="draw-grid">
-
-      <div class="canvas-col">
-        <div class="canvas-wrapper">
-          <canvas id="drawCanvas" width="280" height="280"></canvas>
-        </div>
-        <span class="canvas-hint">Draw inside the box</span>
-        <div class="draw-actions">
-          <button class="btn-ghost" onclick="clearCanvas()">🗑 Clear</button>
-          <div class="brush-row">
-            🖊
-            <input type="range" id="brushSize" min="8" max="32" value="18" title="Brush size"/>
-            <span id="brushLabel">18px</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="result-col">
-        <button class="predict-btn" id="drawPredictBtn" onclick="predictDraw()">
-          <span>Identify Digit</span><span>→</span>
-        </button>
-        <div class="result-box" id="drawResult">
-          <div class="empty-state">
-            <div class="empty-icon">🔢</div>
-            <p class="empty-text">Draw a digit on the canvas,<br>then click <strong>Identify Digit</strong></p>
-          </div>
-        </div>
-      </div>
-
+  <!-- API URL -->
+  <div class="card">
+    <div class="section-label">API endpoint</div>
+    <div class="api-row">
+      <input id="api-url" type="text" placeholder="https://your-app.onrender.com" spellcheck="false" />
     </div>
   </div>
 
-  <!-- ══ UPLOAD PANEL ══ -->
-  <div class="panel card" id="panel-upload">
-    <div class="upload-stack">
+  <!-- Input card -->
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('draw')">Draw</button>
+      <button class="tab" onclick="switchTab('upload')">Upload image</button>
+    </div>
 
-      <div class="drop-zone" id="dropZone">
-        <input type="file" id="fileInput" accept="image/*" onchange="handleFileSelect(event)"/>
-        <div class="drop-icon">🖼️</div>
-        <div class="drop-title">Drop an image here</div>
-        <div class="drop-sub">or click to browse · PNG, JPG, BMP supported</div>
-      </div>
-
-      <div class="preview-row" id="previewRow">
-        <img class="preview-thumb" id="previewThumb" alt="preview"/>
-        <div class="preview-info">
-          <div class="preview-name" id="previewName">—</div>
-          <div class="preview-size" id="previewSize">—</div>
+    <!-- Draw panel -->
+    <div class="tab-panel active" id="tab-draw">
+      <div class="canvas-wrapper">
+        <canvas id="draw-canvas" width="280" height="280"></canvas>
+        <div class="canvas-actions">
+          <button class="btn btn-ghost" onclick="clearCanvas()">Clear</button>
+          <button class="btn btn-primary" id="btn-predict-draw" onclick="predictDraw()">Classify →</button>
+        </div>
+        <div class="pen-size-row">
+          <label>Pen size</label>
+          <input type="range" min="8" max="32" value="18" id="pen-size" oninput="penSizeOut.textContent=this.value" />
+          <span id="penSizeOut">18</span>
         </div>
       </div>
+    </div>
 
-      <div class="upload-bottom">
-        <div class="result-col">
-          <button class="predict-btn" id="uploadPredictBtn" onclick="predictUpload()" disabled>
-            <span>Identify Digit</span><span>→</span>
-          </button>
-          <div class="result-box" id="uploadResult">
-            <div class="empty-state">
-              <div class="empty-icon">📤</div>
-              <p class="empty-text">Upload an image of a<br>handwritten digit to begin</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="tips-card">
-          <div class="tips-title">💡 Tips for best results</div>
-          <ul class="tips-list">
-            <li>Use a white background with dark ink</li>
-            <li>Write a single digit (0–9) centred in the image</li>
-            <li>Keep the digit large and clearly visible</li>
-            <li>28×28 px images work best (model native)</li>
-            <li>Avoid extra marks or noise around the digit</li>
-          </ul>
+    <!-- Upload panel -->
+    <div class="tab-panel" id="tab-upload">
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="handleDrop(event)">
+        <svg width="36" height="36" fill="none" stroke="#fff" stroke-width="1.5" viewBox="0 0 24 24">
+          <path d="M12 16V8m0 0-3 3m3-3 3 3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 16.5V18a2 2 0 002 2h14a2 2 0 002-2v-1.5" stroke-linecap="round"/>
+        </svg>
+        <p>Drop an image here or <span>browse</span></p>
+        <p style="font-size:0.75rem;margin-top:4px;color:#444458">PNG, JPG — white digit on black background</p>
+        <input type="file" id="file-input" accept="image/*" onchange="handleFile(event)" />
+      </div>
+      <div id="upload-preview">
+        <img id="preview-img" src="" alt="preview" />
+        <div class="canvas-actions">
+          <button class="btn btn-ghost" onclick="resetUpload()">Remove</button>
+          <button class="btn btn-primary" id="btn-predict-upload" onclick="predictUpload()">Classify →</button>
         </div>
       </div>
-
     </div>
   </div>
 
+  <!-- Loading -->
+  <div class="spinner" id="spinner">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+    </svg>
+    Classifying…
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="error-msg"></div>
+
+  <!-- Result -->
+  <div class="card" id="result-card">
+    <div class="section-label">Prediction</div>
+    <div class="result-digit" id="result-digit">—</div>
+    <div class="result-label">Detected digit</div>
+    <div class="confidence-bar-wrap">
+      <div class="confidence-bar" id="conf-bar" style="width:0%"></div>
+    </div>
+    <div class="confidence-pct" id="conf-pct">—</div>
+  </div>
 </div>
 
 <script>
-// ─── API config ─────────────────────────────────────────────────────────────
-let BASE_URL = 'https://project1karunya.onrender.com';
+  const canvas = document.getElementById('draw-canvas');
+  const ctx = canvas.getContext('2d');
+  let drawing = false;
+  let lastX = 0, lastY = 0;
 
-function editApiUrl() {
-  const url = prompt('Enter your Render API base URL\n(e.g. https://my-app.onrender.com):', BASE_URL);
-  if (url !== null) {
-    BASE_URL = url.trim().replace(/\/$/, '');
-    document.getElementById('apiUrlDisplay').textContent = BASE_URL + '/predict';
-  }
-}
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 280, 280);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 18;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
 
-// ─── Tab switching ───────────────────────────────────────────────────────────
-function switchTab(name, btn) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('panel-' + name).classList.add('active');
-}
-
-// ─── Canvas setup ────────────────────────────────────────────────────────────
-const canvas = document.getElementById('drawCanvas');
-const ctx    = canvas.getContext('2d');
-let   drawing = false, lastX = 0, lastY = 0;
-
-ctx.fillStyle = '#ffffff';
-ctx.fillRect(0, 0, canvas.width, canvas.height);
-ctx.strokeStyle = '#111111';
-ctx.lineJoin = 'round';
-ctx.lineCap  = 'round';
-
-const brushInput = document.getElementById('brushSize');
-const brushLabel = document.getElementById('brushLabel');
-brushInput.addEventListener('input', () => { brushLabel.textContent = brushInput.value + 'px'; });
-
-function getBrush() { return parseInt(brushInput.value); }
-
-function getPos(e) {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width  / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const src = e.touches ? e.touches[0] : e;
-  return [(src.clientX - rect.left) * scaleX,
-          (src.clientY - rect.top)  * scaleY];
-}
-
-canvas.addEventListener('mousedown',  e => { drawing = true; [lastX, lastY] = getPos(e); });
-canvas.addEventListener('mousemove',  e => {
-  if (!drawing) return;
-  const [x, y] = getPos(e);
-  ctx.lineWidth = getBrush();
-  ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
-  [lastX, lastY] = [x, y];
-});
-canvas.addEventListener('mouseup',    () => drawing = false);
-canvas.addEventListener('mouseleave', () => drawing = false);
-
-canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; [lastX, lastY] = getPos(e); }, { passive: false });
-canvas.addEventListener('touchmove',  e => {
-  e.preventDefault();
-  if (!drawing) return;
-  const [x, y] = getPos(e);
-  ctx.lineWidth = getBrush();
-  ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
-  [lastX, lastY] = [x, y];
-}, { passive: false });
-canvas.addEventListener('touchend', () => drawing = false);
-
-function clearCanvas() {
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  resetBox('drawResult', '🔢', 'Draw a digit on the canvas,<br>then click <strong>Identify Digit</strong>');
-}
-
-// ─── File upload ─────────────────────────────────────────────────────────────
-let uploadedFile = null;
-
-const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault(); dropZone.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
-  if (f && f.type.startsWith('image/')) loadPreview(f);
-});
-
-function handleFileSelect(e) {
-  const f = e.target.files[0];
-  if (f) loadPreview(f);
-}
-
-function loadPreview(file) {
-  uploadedFile = file;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const thumb = document.getElementById('previewThumb');
-    thumb.src = ev.target.result;
-    thumb.style.display = 'block';
-    document.getElementById('previewName').textContent = file.name;
-    document.getElementById('previewSize').textContent =
-      (file.size / 1024).toFixed(1) + ' KB · ' + file.type;
-    document.getElementById('previewRow').style.display = 'flex';
-    document.getElementById('uploadPredictBtn').disabled = false;
-    resetBox('uploadResult', '✅', 'Image ready — click <strong>Identify Digit</strong>');
-  };
-  reader.readAsDataURL(file);
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function resetBox(id, icon, msg) {
-  document.getElementById(id).className = 'result-box';
-  document.getElementById(id).innerHTML =
-    `<div class="empty-state"><div class="empty-icon">${icon}</div>
-     <p class="empty-text">${msg}</p></div>`;
-}
-
-function setLoading(btnId, on) {
-  const btn = document.getElementById(btnId);
-  btn.disabled = on;
-  btn.innerHTML = on
-    ? `<div class="spinner"></div><span>Analysing…</span>`
-    : `<span>Identify Digit</span><span>→</span>`;
-}
-
-function renderResult(boxId, data) {
-  // Accept various response shapes from common MNIST API implementations
-  const digit = data.prediction ?? data.digit ?? data.predicted_class ?? data.label ?? data.class ?? '?';
-  const conf   = data.confidence ?? data.probability ?? data.score ?? null;
-  const probs  = data.probabilities ?? data.probs ?? data.scores ?? null;
-
-  let html = `<div class="digit-display">${digit}</div>
-              <div class="digit-label">Predicted Digit</div>`;
-
-  if (conf !== null) {
-    const pct = (parseFloat(conf) * 100).toFixed(1);
-    html += `<div class="conf-wrap">
-               <div class="conf-header"><span>Confidence</span><span>${pct}%</span></div>
-               <div class="conf-track"><div class="conf-fill" style="width:${pct}%"></div></div>
-             </div>`;
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    if (e.touches) {
+      return [(e.touches[0].clientX - r.left) * scaleX, (e.touches[0].clientY - r.top) * scaleY];
+    }
+    return [(e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY];
   }
 
-  if (probs) {
-    const arr  = Array.isArray(probs) ? probs : Object.values(probs);
-    const top5 = arr.map((p,i) => ({d:i,p})).sort((a,b)=>b.p-a.p).slice(0,5);
-    html += `<div class="topk-label">Top predictions</div><div class="topk-row">`;
-    top5.forEach(({d,p}) => {
-      const win = d === parseInt(digit);
-      html += `<div class="topk-cell ${win?'winner':''}">
-                 <div class="topk-d">${d}</div>
-                 <div class="topk-p">${(p*100).toFixed(1)}%</div>
-               </div>`;
+  canvas.addEventListener('mousedown', e => { drawing = true; [lastX, lastY] = getPos(e); });
+  canvas.addEventListener('mousemove', e => {
+    if (!drawing) return;
+    const [x, y] = getPos(e);
+    ctx.lineWidth = parseInt(document.getElementById('pen-size').value);
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+    [lastX, lastY] = [x, y];
+  });
+  canvas.addEventListener('mouseup', () => drawing = false);
+  canvas.addEventListener('mouseleave', () => drawing = false);
+
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; [lastX, lastY] = getPos(e); });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (!drawing) return;
+    const [x, y] = getPos(e);
+    ctx.lineWidth = parseInt(document.getElementById('pen-size').value);
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+    [lastX, lastY] = [x, y];
+  });
+  canvas.addEventListener('touchend', () => drawing = false);
+
+  function clearCanvas() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, 280, 280);
+    hideResult();
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (tab === 'draw')));
+    document.getElementById('tab-draw').classList.toggle('active', tab === 'draw');
+    document.getElementById('tab-upload').classList.toggle('active', tab === 'upload');
+    hideResult();
+  }
+
+  let uploadedFile = null;
+  function handleFile(e) { loadFile(e.target.files[0]); }
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+    loadFile(e.dataTransfer.files[0]);
+  }
+  function loadFile(file) {
+    if (!file) return;
+    uploadedFile = file;
+    const url = URL.createObjectURL(file);
+    document.getElementById('preview-img').src = url;
+    document.getElementById('upload-zone').style.display = 'none';
+    document.getElementById('upload-preview').style.display = 'flex';
+    hideResult();
+  }
+  function resetUpload() {
+    uploadedFile = null;
+    document.getElementById('upload-zone').style.display = 'block';
+    document.getElementById('upload-preview').style.display = 'none';
+    document.getElementById('file-input').value = '';
+    hideResult();
+  }
+
+  function getApiUrl() {
+    const base = document.getElementById('api-url').value.trim().replace(/\/$/, '');
+    return base ? base + '/predict' : null;
+  }
+
+  function showLoading(on) {
+    document.getElementById('spinner').style.display = on ? 'flex' : 'none';
+    document.getElementById('btn-predict-draw').disabled = on;
+    document.getElementById('btn-predict-upload').disabled = on;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+    document.getElementById('result-card').style.display = 'none';
+  }
+
+  function hideResult() {
+    document.getElementById('result-card').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'none';
+  }
+
+  function showResult(digit, confidence) {
+    document.getElementById('error-msg').style.display = 'none';
+    document.getElementById('result-card').style.display = 'block';
+    document.getElementById('result-digit').textContent = digit;
+    const pct = Math.round(confidence * 100);
+    document.getElementById('conf-bar').style.width = pct + '%';
+    document.getElementById('conf-pct').textContent = pct + '% confidence';
+  }
+
+  function canvasToPixels() {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = 28; offscreen.height = 28;
+    const oc = offscreen.getContext('2d');
+    oc.drawImage(canvas, 0, 0, 28, 28);
+    const data = oc.getImageData(0, 0, 28, 28).data;
+    const pixels = [];
+    for (let i = 0; i < data.length; i += 4) pixels.push(data[i] / 255);
+    return pixels;
+  }
+
+  async function predictDraw() {
+    const url = getApiUrl();
+    if (!url) { showError('Please enter your API URL above.'); return; }
+    showLoading(true); hideResult();
+    try {
+      const pixels = canvasToPixels();
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: pixels })
+      });
+      if (!res.ok) { const t = await res.text(); throw new Error(`Server error ${res.status}: ${t}`); }
+      const data = await res.json();
+      showResult(data.prediction, data.confidence ?? 1);
+    } catch (e) {
+      showError(e.message || 'Request failed. Check your API URL and CORS settings.');
+    } finally { showLoading(false); }
+  }
+
+  async function predictUpload() {
+    const url = getApiUrl();
+    if (!url) { showError('Please enter your API URL above.'); return; }
+    if (!uploadedFile) { showError('No image selected.'); return; }
+    showLoading(true); hideResult();
+    try {
+      const pixels = await imageFileToPixels(uploadedFile);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: pixels })
+      });
+      if (!res.ok) { const t = await res.text(); throw new Error(`Server error ${res.status}: ${t}`); }
+      const data = await res.json();
+      showResult(data.prediction, data.confidence ?? 1);
+    } catch (e) {
+      showError(e.message || 'Request failed.');
+    } finally { showLoading(false); }
+  }
+
+  function imageFileToPixels(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const oc = document.createElement('canvas');
+        oc.width = 28; oc.height = 28;
+        const c = oc.getContext('2d');
+        c.drawImage(img, 0, 0, 28, 28);
+        const data = c.getImageData(0, 0, 28, 28).data;
+        const pixels = [];
+        for (let i = 0; i < data.length; i += 4) pixels.push(data[i] / 255);
+        URL.revokeObjectURL(url);
+        resolve(pixels);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = url;
     });
-    html += `</div>`;
   }
-
-  const box = document.getElementById(boxId);
-  box.innerHTML = html;
-  box.className = 'result-box has-result';
-}
-
-function renderError(boxId, msg) {
-  const box = document.getElementById(boxId);
-  box.innerHTML = `<div class="err-state"><div class="err-icon">⚠️</div>
-                   <p class="err-text">${msg}</p></div>`;
-  box.className = 'result-box has-error';
-}
-
-// ─── Predict from canvas ──────────────────────────────────────────────────────
-async function predictDraw() {
-  const endpoint = BASE_URL.replace(/\/$/, '') + '/predict';
-  setLoading('drawPredictBtn', true);
-  try {
-    // Scale to 28×28 (MNIST native)
-    const off = document.createElement('canvas');
-    off.width = off.height = 28;
-    off.getContext('2d').drawImage(canvas, 0, 0, 28, 28);
-    const b64 = off.toDataURL('image/png').split(',')[1];
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: b64 })
-    });
-    if (!res.ok) throw new Error(`Server error ${res.status}: ${await res.text()}`);
-    renderResult('drawResult', await res.json());
-  } catch(err) {
-    renderError('drawResult', err.message || 'Request failed. Check your API URL and CORS settings.');
-  } finally {
-    setLoading('drawPredictBtn', false);
-  }
-}
-
-// ─── Predict from upload ──────────────────────────────────────────────────────
-async function predictUpload() {
-  if (!uploadedFile) return;
-  const endpoint = BASE_URL.replace(/\/$/, '') + '/predict';
-  setLoading('uploadPredictBtn', true);
-  try {
-    const dataUrl = await new Promise((res,rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result);
-      r.onerror = rej;
-      r.readAsDataURL(uploadedFile);
-    });
-    const b64 = dataUrl.split(',')[1];
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: b64 })
-    });
-    if (!res.ok) throw new Error(`Server error ${res.status}: ${await res.text()}`);
-    renderResult('uploadResult', await res.json());
-  } catch(err) {
-    renderError('uploadResult', err.message || 'Request failed. Check your API URL and CORS settings.');
-  } finally {
-    setLoading('uploadPredictBtn', false);
-  }
-}
 </script>
 </body>
 </html>
